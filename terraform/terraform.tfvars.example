@@ -1,0 +1,21 @@
+aws_region = "eu-west-1"
+
+project_name = "microservices-lab"
+environment  = "dev"
+
+vpc_cidr            = "10.0.0.0/16"
+public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+
+# Replace this with your public IP in CIDR format, for example "203.0.113.10/32".
+ssh_cidr_blocks = ["0.0.0.0/0"]
+
+# Keep open for lab demos, or restrict to your IP.
+app_cidr_blocks = ["0.0.0.0/0"]
+
+instance_type = "t3.micro"
+
+# Optional: set this if you already created an EC2 key pair in AWS.
+key_name = ""
+
+container_image_tag = "latest"
+enable_sqs          = true

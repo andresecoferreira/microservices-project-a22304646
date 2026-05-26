@@ -13,3 +13,38 @@ jobs:
     with:
       service: product-service
     secrets: inherit
+
+  deploy-prod:
+    needs: product
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://example.com
+    steps:
+      - run: echo "Deploying to prod..."
+
+  deploy-report:
+    needs: deploy-prod
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+    steps:
+      - name: Write summary
+        run: |
+          echo "### Deploy Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Service: product-service" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ needs.deploy-prod.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- SHA: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date -u)" >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK != ''
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          webhook-type: incoming-webhook
+          webhook: ${{ env.SLACK_WEBHOOK }}
+          payload: |
+            {
+              "text": "Deploy ${{ needs.deploy-prod.result }}: ${{ github.repository }}@${{ github.sha }}"
+            }

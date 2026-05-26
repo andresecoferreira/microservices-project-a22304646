@@ -20,6 +20,127 @@ This is a microservices-based application demonstrating a modern cloud-native ar
 3. **Product Service** - Manages product catalog and inventory
 4. **Order Service** - Manages orders with inter-service communication (Kafka + OpenFeign)
 
+## Lab CI/CD Delivery
+
+This repository contains a Java Spring Boot microservices project with GitHub Actions workflows for continuous integration, Docker image publishing, AWS OIDC authentication, Terraform automation, reusable workflows, environment-gated deployment, and release reporting.
+
+### Repository Structure
+
+```text
+.
+├── .github/workflows/
+│   ├── hello.yml              # Basic GitHub Actions context test
+│   ├── ci.yml                 # Maven validate, compile and test for product-service
+│   ├── image.yml              # Build and push product-service Docker image
+│   ├── aws-test.yml           # Test AWS authentication through OIDC
+│   ├── terraform.yml          # Terraform plan on PR and apply on main
+│   ├── reusable-image.yml     # Reusable Docker build/push workflow
+│   └── release.yml            # Tag-based release using the reusable workflow
+├── api-gateway/               # Spring Cloud Gateway service
+├── user-service/              # User microservice and Dockerfile
+├── product-service/           # Product microservice and Dockerfile
+├── order-service/             # Order microservice and Dockerfile
+├── terraform/                 # AWS infrastructure as code
+├── docker-compose.yml
+└── pom.xml                    # Maven aggregator POM
+```
+
+### Workflow Explanations
+
+- `hello.yml`: runs on every push and can also be started manually. It prints repository, branch, commit and actor information.
+- `ci.yml`: runs on pull requests and pushes to `main`. It validates the Maven POM, compiles and runs tests for `product-service`.
+- `image.yml`: runs on pushes to `main` and manually. It builds and pushes the `product-service` Docker image to Docker Hub.
+- `aws-test.yml`: runs manually and verifies that GitHub Actions can assume the AWS IAM role through OIDC.
+- `terraform.yml`: runs `terraform plan` for pull requests that change `terraform/**`; on pushes to `main`, it runs `terraform apply`.
+- `reusable-image.yml`: reusable workflow called by other workflows to build and push a service Docker image.
+- `release.yml`: runs when a tag matching `v*` is pushed. It builds the release image, waits for production environment approval, writes a job summary and optionally sends a Slack notification.
+
+### Required GitHub Secrets
+
+```text
+DOCKERHUB_USERNAME   Docker Hub username used to publish images
+DOCKERHUB_TOKEN      Docker Hub personal access token
+AWS_ROLE_TO_ASSUME   IAM role ARN used by GitHub Actions OIDC
+SLACK_WEBHOOK        Optional Slack incoming webhook for release notifications
+```
+
+The AWS role ARN used in this lab follows this format:
+
+```text
+arn:aws:iam::893385061704:role/gha-deployer
+```
+
+### How to Trigger Workflows
+
+- Push to any branch: triggers `hello.yml`.
+- Open or update a pull request: triggers `ci.yml`.
+- Push to `main`: triggers `ci.yml`, `image.yml`, and workflows with matching path filters.
+- Change files under `terraform/**` in a pull request: triggers a Terraform plan and comments the result on the PR.
+- Merge Terraform changes to `main`: triggers Terraform apply.
+- Run `AWS OIDC Test` manually from the GitHub Actions tab to test AWS identity.
+- Push a release tag such as `v1.0.0` to trigger `release.yml`:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### Docker Hub Repositories
+
+Docker images are published using the Docker Hub username stored in `DOCKERHUB_USERNAME`.
+
+Expected image names:
+
+```text
+<DOCKERHUB_USERNAME>/product-service:latest
+<DOCKERHUB_USERNAME>/product-service:<commit-sha>
+<DOCKERHUB_USERNAME>/user-service:<commit-sha>
+<DOCKERHUB_USERNAME>/order-service:<commit-sha>
+```
+
+Example pull command:
+
+```bash
+docker pull <DOCKERHUB_USERNAME>/product-service:latest
+```
+
+### Terraform Usage
+
+Terraform files are stored in `terraform/`.
+
+Basic local commands:
+
+```bash
+cd terraform
+terraform init
+terraform fmt -check
+terraform validate
+terraform plan
+```
+
+The GitHub Actions workflow runs the same validation steps automatically. On pull requests, it comments the plan output. On `main`, it applies the generated plan automatically, so use it carefully because it can create AWS resources and costs.
+
+### AWS OIDC Setup Summary
+
+GitHub Actions authenticates to AWS without long-lived AWS access keys.
+
+AWS IAM OIDC provider:
+
+```text
+URL: https://token.actions.githubusercontent.com
+Audience: sts.amazonaws.com
+```
+
+IAM role:
+
+```text
+Name: gha-deployer
+Trusted repository: andresecoferreira/microservices-project-a22304646
+Secret name in GitHub: AWS_ROLE_TO_ASSUME
+```
+
+The role trust policy allows GitHub Actions jobs from this repository to call `sts:AssumeRoleWithWebIdentity`. The role needs permissions for the AWS services managed by Terraform, such as EC2, VPC, ECR and SQS.
+
 ## Architecture
 
 ```
